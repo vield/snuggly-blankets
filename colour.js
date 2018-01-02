@@ -36,12 +36,12 @@ function ColourRangeFromStepSize(startingPoint, stepSize)
     this.colours = COLOURS;
 }
 
+
 function ColourRangeFromTemperatures(temperatures)
 {
     let tmpSum = temperatures.reduce(function(a, b) { return a + b; });
     let avgTmp = tmpSum / temperatures.length;
     avgTmp = Math.round(avgTmp);
-    console.log(avgTmp);
 
     let maxTmp = Math.max(...temperatures);
     let minTmp = Math.min(...temperatures);
