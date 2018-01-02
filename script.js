@@ -2,43 +2,6 @@ var myCanvas = document.getElementById("canvas");
 var context = canvas.getContext("2d");
 
 
-var COLOURS = ["#000066", "#3333ff", "#3366ff", "#6699ff", "#99ccff", "#ccccff", "#ffffff", "#ffcc99", "#ff9966", "#ff6600", "#ff0000", "#800000"];
-
-function ColourRangeFromStepSize(startingPoint, stepSize)
-{
-    this.ranges = [startingPoint];
-    let cur = startingPoint;
-    for (i = 0; i < COLOURS.length-1; i++)
-    {
-        cur += stepSize;
-        this.ranges.push(cur);
-    }
-    this.colours = COLOURS;
-}
-
-function ColourRangeFromTemperatures(temperatures)
-{
-    let tmpSum = temperatures.reduce(function(a, b) { return a + b; });
-    let avgTmp = tmpSum / temperatures.length;
-    avgTmp = Math.round(avgTmp);
-
-    let maxTmp = Math.max(...temperatures);
-    let minTmp = Math.min(...temperatures);
-
-    let rangeLength = maxTmp - minTmp;
-    let stepSize = Math.round(rangeLength/COLOURS.length);
-    let startingPoint = avgTmp - (length / 2) * stepSize;
-
-    this.ranges = [startingPoint];
-    let cur = startingPoint;
-    for (i = 0; i < COLOURS.length-1; i++)
-    {
-        cur += stepSize;
-        this.ranges.push(cur);
-    }
-    this.colours = COLOURS;
-}
-
 
 function drawTemperatureBlanket(city, colourRange)
 {
@@ -71,11 +34,38 @@ function redraw()
     let citySelector = document.getElementById("citySelector");
     let cityIndex = citySelector.options[citySelector.selectedIndex].value;
     let city = cities[cityIndex];
-    // Default, FIXME
-    let colourRange = new ColourRangeFromStepSize(-10, 3);
+
+    // Get range
+    let rangeForm = document.getElementById("colourRange");
+    let rangeSelectionTypes = document.getElementsByName("rangeType");
+    let selectionValue = "";
+    for (i = 0; i < rangeSelectionTypes.length; i++)
+    {
+        if (rangeSelectionTypes[i].checked)
+        {
+            selectionValue = rangeSelectionTypes[i].value;
+            break;
+        }
+    }
+
+    let colourRange = null;
+    if (selectionValue == "uniform")
+    {
+        colourRange = new ColourRangeFromTemperatures(city.temperatures);
+        console.log(colourRange.ranges);
+    }
+    else
+    {
+        let startingPoint = Number(document.getElementById("startingPoint").value);
+        let stepSize = Number(document.getElementById("stepSize").value);
+        colourRange = new ColourRangeFromStepSize(startingPoint, stepSize);
+        console.log(colourRange.ranges);
+    }
 
     drawTemperatureBlanket(city, colourRange);
 }
 
+
 addCityDropDownMenu();
+addColourRangeMenu();
 drawTemperatureBlanket(cities[DEFAULT_CITY], new ColourRangeFromStepSize(-10, 3));
