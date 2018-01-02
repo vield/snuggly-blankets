@@ -1,0 +1,14 @@
+body
+{
+    background-color: grey;
+}
+
+.interfaceSection
+{
+   float: left;
+}
+
+footer
+{
+    clear: both;
+}
