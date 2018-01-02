@@ -32,6 +32,10 @@ function redraw()
     {
         colourRange = new ColourRangeFromTemperatures(city.temperatures, colourMap);
     }
+    else if (selectionValue == "uniformByYarn")
+    {
+        colourRange = new FlexibleColourRangeFromTemperatures(city.temperatures, city.sortedTemperatures, colourMap);
+    }
     else
     {
         let startingPoint = Number(document.getElementById("startingPoint").value);

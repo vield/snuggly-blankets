@@ -10,10 +10,17 @@
 var DEFAULT_CITY = 2;
 
 
+function sortNumber(a, b) {
+    return a - b;
+}
+
+
 function City(name, temperatures)
 {
     this.name = name;
     this.temperatures = temperatures;
+    // ??? Integers are sorted alphabetically by default, who comes up with this s**t
+    this.sortedTemperatures = Array.prototype.slice.call(temperatures).sort(sortNumber);
 };
 
 
