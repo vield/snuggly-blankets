@@ -1,4 +1,18 @@
-var COLOURS = ["#000066", "#3333ff", "#3366ff", "#6699ff", "#99ccff", "#ccccff", "#ffffff", "#ffcc99", "#ff9966", "#ff6600", "#ff0000", "#800000"];
+var DEFAULT_COLOUR_MAP = 2;
+
+
+function ColourMap(name, colourValues)
+{
+    this.name = name;
+    this.colourValues = colourValues;
+}
+
+
+var COLOUR_MAPS = [
+    new ColourMap("Bright Rainbow (8 colours)", ["#ff0000", "#ff6600", "#ffcc00", "#66ff33", "#00ff99", "#0099ff", "#0033cc", "#6600ff"]),
+    new ColourMap("Muted Rainbow (7 colours)", ["#990033", "#ff3300", "#ff9900", "#006600", "#004466", "#002966", "#202060"]),
+    new ColourMap("Red-White-Blue (12 colours)", ["#000066", "#3333ff", "#3366ff", "#6699ff", "#99ccff", "#ccccff", "#ffffff", "#ffcc99", "#ff9966", "#ff6600", "#ff0000", "#800000"])
+];
 
 
 function addColourRangeMenu()
@@ -24,20 +38,39 @@ function addColourRangeMenu()
 }
 
 
-function ColourRangeFromStepSize(startingPoint, stepSize)
+function addColourMenu()
+{
+    let elem = document.getElementById("selectColours");
+    let html = "<select id=\"colourDropdown\" onChange=\"redraw()\">";
+    for (i = 0; i < COLOUR_MAPS.length; i++)
+    {
+        html += "<option value=\"" + i + "\""
+        if (i == DEFAULT_COLOUR_MAP)
+        {
+            html += "selected=\"selected\"";
+        }
+        html += ">" + COLOUR_MAPS[i].name + "</option>";
+    }
+    html += "</select>";
+
+    elem.innerHTML = html;
+}
+
+
+function ColourRangeFromStepSize(startingPoint, stepSize, colourMap)
 {
     this.ranges = [startingPoint];
     let cur = startingPoint;
-    for (i = 0; i < COLOURS.length-1; i++)
+    for (i = 0; i < colourMap.colourValues.length-1; i++)
     {
         cur += stepSize;
         this.ranges.push(cur);
     }
-    this.colours = COLOURS;
+    this.colours = colourMap.colourValues;
 }
 
 
-function ColourRangeFromTemperatures(temperatures)
+function ColourRangeFromTemperatures(temperatures, colourMap)
 {
     let tmpSum = temperatures.reduce(function(a, b) { return a + b; });
     let avgTmp = tmpSum / temperatures.length;
@@ -47,15 +80,15 @@ function ColourRangeFromTemperatures(temperatures)
     let minTmp = Math.min(...temperatures);
 
     let rangeLength = maxTmp - minTmp;
-    let stepSize = Math.round(rangeLength/COLOURS.length);
-    let startingPoint = avgTmp - ((COLOURS.length / 2.0) * stepSize);
+    let stepSize = Math.round(rangeLength/colourMap.colourValues.length);
+    let startingPoint = avgTmp - ((colourMap.colourValues.length / 2.0) * stepSize);
 
     this.ranges = [startingPoint];
     let cur = startingPoint;
-    for (i = 0; i < COLOURS.length-1; i++)
+    for (i = 0; i < colourMap.colourValues.length-1; i++)
     {
         cur += stepSize;
         this.ranges.push(cur);
     }
-    this.colours = COLOURS;
+    this.colours = colourMap.colourValues;
 }
