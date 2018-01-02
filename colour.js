@@ -9,8 +9,8 @@ function ColourMap(name, colourValues)
 
 
 var COLOUR_MAPS = [
-    new ColourMap("Bright Rainbow (8 colours)", ["#ff0000", "#ff6600", "#ffcc00", "#66ff33", "#00ff99", "#0099ff", "#0033cc", "#6600ff"]),
-    new ColourMap("Muted Rainbow (7 colours)", ["#990033", "#ff3300", "#ff9900", "#006600", "#004466", "#002966", "#202060"]),
+    new ColourMap("Bright Rainbow (8 colours)", ["#6600ff", "#0033cc", "#0099ff", "#00ff99", "#66ff33", "#ffcc00", "#ff6600", "#ff0000"]),
+    new ColourMap("Muted Rainbow (7 colours)", ["#202060", "#002966", "#004466", "#006600", "#ff9900", "#ff3300", "#990033"]),
     new ColourMap("Red-White-Blue (12 colours)", ["#000066", "#3333ff", "#3366ff", "#6699ff", "#99ccff", "#ccccff", "#ffffff", "#ffcc99", "#ff9966", "#ff6600", "#ff0000", "#800000"])
 ];
 
