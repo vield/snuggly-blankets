@@ -1,6 +1,9 @@
-var DEFAULT_COLOUR_MAP = 2;
-
-
+/**
+ * Create a ColourMap.
+ *
+ * @param name  Identifier for the dropdown, e.g. "Greens (9 colours)"
+ * @param colourValues  Array of hex colours from COLD to HOT, e.g. ["#0000ff", "#ffffff", "#ff0000"].
+ */
 function ColourMap(name, colourValues)
 {
     this.name = name;
@@ -8,11 +11,124 @@ function ColourMap(name, colourValues)
 }
 
 
+/**
+ * Create a ColourRange.
+ *
+ * @param cutPoints  Array of cutpoints (numbers representing degrees), from COLD to HOT.
+ * The max temperature of the range is inclusive.
+ * E.g. if the cutpoints are 0, 5 and 10, then the effective ranges will
+ * be -Inf to 0; 1 to 5; 6 to 10; 11 to Inf.
+ */
+function ColourRange(cutPoints)
+{
+    this.cutPoints = [Number.NEGATIVE_INFINITY];
+    this.cutPoints = this.cutPoints.concat(cutPoints, [Number.POSITIVE_INFINITY]);
+}
+
+
+/**
+ * Get a hex colour value for a given temperature.
+ *
+ * @param temp  Temperature value.
+ * @param colourMap  ColourMap object from which we take the values.
+ * @param colourRange  ColourRange object from which we take the values.
+ * @param lookup  Dictionary maintained by the caller that stores already resolved values
+ * so we don't need to do a linear search for the range every time.
+ * @param getByIndex  Instead of returning the hex string, return the index
+ * on the ColourMap.
+ */
+function getColourValueForTemperature(temp, colourMap, colourRange, lookup, getByIndex)
+{
+    console.assert(
+        colourMap.colourValues.length + 1 == colourRange.cutPoints.length,
+        "Number of colours and max temperatures don't match!"
+    );
+
+    let value = lookup[temp];
+
+    if (value != undefined)
+    {
+        return value;
+    }
+
+    for (let i = 1; i < colourRange.cutPoints.length; i++)
+    {
+        if (colourRange.cutPoints[i-1] < temp && colourRange.cutPoints[i] >= temp)
+        {
+            if (getByIndex)
+            {
+                lookup[temp] = i-1;
+            }
+            else
+            {
+                lookup[temp] = colourMap.colourValues[i-1];
+            }
+            return lookup[temp];
+        }
+    }
+}
+
+
+/* Predefined colour maps */
+
+var DEFAULT_COLOUR_MAP = 2;
+
 var COLOUR_MAPS = [
     new ColourMap("Bright Rainbow (8 colours)", ["#6600ff", "#0033cc", "#0099ff", "#00ff99", "#66ff33", "#ffcc00", "#ff6600", "#ff0000"]),
     new ColourMap("Muted Rainbow (7 colours)", ["#202060", "#002966", "#004466", "#006600", "#ff9900", "#ff3300", "#990033"]),
     new ColourMap("Red-White-Blue (12 colours)", ["#000066", "#3333ff", "#3366ff", "#6699ff", "#99ccff", "#ccccff", "#ffffff", "#ffcc99", "#ff9966", "#ff6600", "#ff0000", "#800000"])
 ];
+
+
+
+function getCityFromSelection()
+{
+    let citySelector = document.getElementById("citySelector");
+    let cityIndex = citySelector.options[citySelector.selectedIndex].value;
+    return cities[cityIndex];
+}
+
+
+function getColourMapFromSelection()
+{
+    let colourSelector = document.getElementById("colourDropdown");
+    let colourIndex = colourSelector.options[colourSelector.selectedIndex].value;
+    return COLOUR_MAPS[colourIndex];
+}
+
+
+function getColourRangeFromSelection()
+{
+    let city = getCityFromSelection();
+    let colourMap = getColourMapFromSelection();
+
+    let colourRangeOptions = document.getElementsByName("rangeType");
+    let colourRangeSelection = "";
+
+    for (i = 0; i < colourRangeOptions.length; i++)
+    {
+        if (colourRangeOptions[i].checked)
+        {
+            colourRangeSelection = colourRangeOptions[i].value;
+            break;
+        }
+    }
+
+    if (colourRangeSelection == "uniform")
+    {
+        return createEvenlySpacedColourRangeFromTemperatures(city.sortedTemperatures, colourMap);
+    }
+    else if (colourRangeSelection == "uniformByYarn")
+    {
+        return createFlexibleWidthColourRangefromTemperatures(city.sortedTemperatures, colourMap);
+    }
+    else
+    {
+        let startingPoint = Number(document.getElementById("startingPoint").value);
+        let stepSize = Number(document.getElementById("stepSize").value);
+        return createColourRangeFromStepSize(startingPoint, stepSize, colourMap);
+    }
+}
 
 
 function getColourRange()
@@ -118,27 +234,17 @@ function getCurrentColourValues()
 
 function getCurrentColourCounts()
 {
-    let citySelector = document.getElementById("citySelector");
-    let cityIndex = citySelector.options[citySelector.selectedIndex].value;
-    let city = cities[cityIndex];
-
-    let colourSelector = document.getElementById("colourDropdown");
-    let colourIndex = colourSelector.options[colourSelector.selectedIndex].value;
-    let colourMap = COLOUR_MAPS[colourIndex];
-
-    let colourRange = getColourRange();
+    let city = getCityFromSelection();
+    let colourMap = getColourMapFromSelection();
+    let colourRange = getColourRangeFromSelection();
 
     let colourCounts = Array(colourMap.colourValues.length).fill(0);
 
-    let j = 1;
+    let lookup = {};
 
-    for (i = 0; i < city.sortedTemperatures.length; i++)
+    for (i = 0; i < city.temperatures.length; i++)
     {
-        if (city.sortedTemperatures[i] > colourRange.ranges[j])
-        {
-            j += 1;
-        }
-        colourCounts[j-1] += 1;
+        colourCounts[getColourValueForTemperature(city.temperatures[i], colourMap, colourRange, lookup, true)] += 1;
     }
 
     return colourCounts;
@@ -169,115 +275,132 @@ function redrawColourRatios()
 }
 
 
-function ColourRangeFromStepSize(startingPoint, stepSize, colourMap)
+/* Methods to initialize colour ranges */
+
+
+/**
+ * Create ColourRange with evenly spaced "buckets".
+ *
+ * @param startingPoint  Number. The lower limit for the lowest bucket,
+ * although this will later be converted to -Inf to cover any low values.
+ * @param stepSize  Number. E.g. if the starting point is -13 and the step
+ * size is 4, we will get a range like [-Inf, -9, -5, -1, 3, ...].
+ * @param colourMap  Just used to get the number of buckets from
+ * colourmap.colourValues.length.
+ */
+function createColourRangeFromStepSize(startingPoint, stepSize, colourMap)
 {
-    this.ranges = [startingPoint];
-    let cur = startingPoint;
-    for (i = 0; i < colourMap.colourValues.length-1; i++)
+    this.cutPoints = [];
+
+    let temperature = startingPoint;
+    for (i = 0; i < colourMap.colourValues.length - 1; i++)
     {
-        cur += stepSize;
-        this.ranges.push(cur);
+        temperature += stepSize;
+        this.cutPoints.push(temperature);
     }
-    this.colours = colourMap.colourValues;
+
+    return new ColourRange(cutPoints);
 }
 
 
-function ColourRangeFromTemperatures(temperatures, colourMap)
+/**
+ * Automatically find a startingPoint and stepSize for a ColourRange.
+ *
+ * @param sortedTemperatures  Array of sorted temperatures the ColourRange
+ * is based on.
+ * @param colourMap  ColourMap, just used to determine the number of
+ * colours.
+ */
+function createEvenlySpacedColourRangeFromTemperatures(sortedTemperatures, colourMap)
 {
-    let tmpSum = temperatures.reduce(function(a, b) { return a + b; });
-    let avgTmp = tmpSum / temperatures.length;
-    avgTmp = Math.round(avgTmp);
+    // Find mean
+    let sumOfTemperatures = sortedTemperatures.reduce(function(a, b) { return a + b; });
+    let avgTemp = sumOfTemperatures / sortedTemperatures.length;
 
-    let maxTmp = Math.max(...temperatures);
-    let minTmp = Math.min(...temperatures);
+    // Work out startingPoint and stepSize
+    let maxTemp = sortedTemperatures[sortedTemperatures.length - 1];
+    let minTemp = sortedTemperatures[0];
 
-    let rangeLength = maxTmp - minTmp;
-    let stepSize = Math.round(rangeLength/colourMap.colourValues.length);
-    let startingPoint = avgTmp - ((colourMap.colourValues.length / 2.0) * stepSize);
+    let rangeLength = maxTemp - minTemp;
+    let numColours = colourMap.colourValues.length;
+    // The step size is rounded, so the range will probably be somewhat longer
+    // or shorter than it "should be". To counteract this, we will centre the
+    // range instead of just setting minTemp as startingPoint.
+    let stepSize = Math.round(rangeLength / numColours);
+    let effectiveRangeLength = stepSize * numColours;
+    let startingPoint = Math.round(avgTemp - 0.5 * effectiveRangeLength);
 
-    this.ranges = [startingPoint];
-    let cur = startingPoint;
-    for (i = 0; i < colourMap.colourValues.length-1; i++)
-    {
-        cur += stepSize;
-        this.ranges.push(cur);
-    }
-    this.colours = colourMap.colourValues;
+    return createColourRangeFromStepSize(startingPoint, stepSize, colourMap);
 }
 
 
-// Needs renaming ...
-function FlexibleColourRangeFromTemperatures(temperatures, sortedTemperatures, colourMap)
+/**
+ * Attempt to create a ColourRange where not all buckets have the same width,
+ * allowing us to have "approximately equal amounts" of each colour.
+ *
+ * @param sortedTemperatures  Sorted temperatures for which we initialize the
+ * range
+ * @param colourMap  ColourMap object, just used to get the number of colours.
+ */
+function createFlexibleWidthColourRangefromTemperatures(sortedTemperatures, colourMap)
 {
-    let days = temperatures.length;
-    let colours = colourMap.colourValues.length;
 
-    let daysPerColourOnAverage = days / colours;
+    let cutPoints = [];
 
-    let startingPoint = sortedTemperatures[0];
+    let numColours = colourMap.colourValues.length;
+    let numDays = sortedTemperatures.length;
 
-    // It'd kind of be better to store a denser version of the sorted data ...
-    // but that'd require changing the data structure. Think, "-2: 2, -1: 6, 0: 8, ..."
-    // so maybe I'll change it later --lk 2/1/2018
+    let daysPerColourOnAverage = numDays / numColours;
 
-    this.ranges = [startingPoint];
+    // By the time we have filled the first bucket, we would
+    // like there to be this many days in the bucket.
+    let bucketNumber = 1;
+    let currentCount = 0;
 
-    // So the way this works is...
-    // If we want to have 10 days in each colour bucket, and
-    // we're currently packing stuff in the fifth bucket, we
-    // are trying to have as close as we can to the number 50
-    // in total in all previous buckets.
-    // If a max temperature for the fifth bucket's range won't
-    // have more than 50 things in the buckets in total (e.g.
-    // there are 48 days in buckets so far), we will always set
-    // at least that max temperature.
-    // If we go over, then we'll compare. E.g. 48 is preferable
-    // to 53.
-    // Obviously this is never going to work if we have e.g. 30
-    // days with the same temperature (then some bucket will have
-    // to contain all 30 anyway). If the user doesn't like the
-    // automated output, there will later be a custom function
-    // where they can set any arbitrary ranges to make the blanket
-    // look nice.
+    let maxTemp = Number.NEGATIVE_INFINITY;
 
-    let goal = daysPerColourOnAverage;
-    console.log("Aiming for " + goal + " days per colour.");
-    let current = 0;
-    let maxTemp = sortedTemperatures[0] - 1;
-    // Find next max temp
-    let ctr = 0;
-    while (ctr < days)
+    let runner = 0;
+    while (bucketNumber < numColours && runner < numDays - 1)
     {
-        if (sortedTemperatures[ctr] > maxTemp)
+        console.log(bucketNumber + ", " + runner);
+        // Run to the end of the streak of one value
+        while (sortedTemperatures[runner] == sortedTemperatures[runner+1])
         {
-            // If we are not at the goal yet, we will always raise maxTemp
-            if (ctr <= goal)
-            {
-                // Check if I'm using maxTemp inclusive or exclusive?
-                maxTemp = sortedTemperatures[ctr];
-            }
-            else
-            {
-                // Only raise maxTemp if it's closer to the goal
-                if (Math.abs(goal - current) > Math.abs(goal - ctr))
-                {
-                    console.log("Aiming for " + goal + ". Choosing " + ctr + " over " + current + ".");
-                    maxTemp = sortedTemperatures[ctr];
-                }
-                else
-                {
-                    console.log("Aiming for " + goal + ". Choosing " + current + " over " + ctr + ".");
-                }
-                // One could get the median of the current temperature and the next one, but we
-                // expect that the differences won't be too great so this is OK too (and simpler)
-                this.ranges.push(maxTemp);
-                // Raise goal, since we've moved to a different bucket now
-                goal += daysPerColourOnAverage;
-            }
-            current = ctr;
+            runner += 1;
+            if (runner == numDays - 1) break;
         }
-        ctr += 1;
+
+        if (runner < bucketNumber * daysPerColourOnAverage)
+        {
+            // Always add this streak if we're not at the target yet
+            // Max temp is inclusive, so we would make this the new max temp.
+            maxTemp = sortedTemperatures[runner];
+            currentCount = runner + 1;
+        }
+        else
+        {
+            // If we're over, we will only move the max temp if it
+            // would bring us closer to the target
+            let targetCount = bucketNumber * daysPerColourOnAverage;
+            if (Math.abs(targetCount - currentCount) > Math.abs(targetCount - runner + 1))
+            {
+                maxTemp = sortedTemperatures[runner];
+                currentCount = runner + 1;
+            }
+            // In either case, move to the next colour bucket
+            cutPoints.push(maxTemp);
+            bucketNumber += 1;
+        }
+        runner += 1;
     }
-    this.ranges.push(sortedTemperatures[sortedTemperatures.length-1]+1);
-    this.colours = colourMap.colourValues;
+
+    // If we had an awful distribution and didn't get enough buckets, still
+    // arbitrarily add some cutpoints so there is the right number
+    while (cutPoints.length < numColours - 1)
+    {
+        // Always one degree higher ... they'll show in the visualizations
+        cutPoints.push(cutPoints[cutPoints.length-1] + 1);
+    }
+
+    return new ColourRange(cutPoints);
 }
