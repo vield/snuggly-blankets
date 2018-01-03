@@ -15,6 +15,50 @@ var COLOUR_MAPS = [
 ];
 
 
+function getColourRange()
+{
+
+    // Get city from dropdown
+    let citySelector = document.getElementById("citySelector");
+    let cityIndex = citySelector.options[citySelector.selectedIndex].value;
+    let city = cities[cityIndex];
+
+    // Get range
+    let rangeForm = document.getElementById("colourRange");
+    let rangeSelectionTypes = document.getElementsByName("rangeType");
+    let selectionValue = "";
+    for (i = 0; i < rangeSelectionTypes.length; i++)
+    {
+        if (rangeSelectionTypes[i].checked)
+        {
+            selectionValue = rangeSelectionTypes[i].value;
+            break;
+        }
+    }
+
+    let colourSelector = document.getElementById("colourDropdown");
+    let colourIndex = colourSelector.options[colourSelector.selectedIndex].value;
+    let colourMap = COLOUR_MAPS[colourIndex];
+
+    let colourRange = null;
+    if (selectionValue == "uniform")
+    {
+        colourRange = new ColourRangeFromTemperatures(city.temperatures, colourMap);
+    }
+    else if (selectionValue == "uniformByYarn")
+    {
+        colourRange = new FlexibleColourRangeFromTemperatures(city.temperatures, city.sortedTemperatures, colourMap);
+    }
+    else
+    {
+        let startingPoint = Number(document.getElementById("startingPoint").value);
+        let stepSize = Number(document.getElementById("stepSize").value);
+        colourRange = new ColourRangeFromStepSize(startingPoint, stepSize, colourMap);
+    }
+    return colourRange;
+}
+
+
 function addColourRangeMenu()
 {
     let elem = document.getElementById("selectRanges");
@@ -60,6 +104,68 @@ function addColourMenu()
     html += "</select>";
 
     elem.innerHTML = html;
+}
+
+
+function getCurrentColourValues()
+{
+    let colourSelector = document.getElementById("colourDropdown");
+    let colourIndex = colourSelector.options[colourSelector.selectedIndex].value;
+    let colourMap = COLOUR_MAPS[colourIndex];
+    return colourMap.colourValues;
+}
+
+
+function getCurrentColourCounts()
+{
+    let citySelector = document.getElementById("citySelector");
+    let cityIndex = citySelector.options[citySelector.selectedIndex].value;
+    let city = cities[cityIndex];
+
+    let colourSelector = document.getElementById("colourDropdown");
+    let colourIndex = colourSelector.options[colourSelector.selectedIndex].value;
+    let colourMap = COLOUR_MAPS[colourIndex];
+
+    let colourRange = getColourRange();
+
+    let colourCounts = Array(colourMap.colourValues.length).fill(0);
+
+    let j = 1;
+
+    for (i = 0; i < city.sortedTemperatures.length; i++)
+    {
+        if (city.sortedTemperatures[i] > colourRange.ranges[j])
+        {
+            j += 1;
+        }
+        colourCounts[j-1] += 1;
+    }
+
+    return colourCounts;
+}
+
+
+function redrawColourRatios()
+{
+    let elem = document.getElementById("colourRatios");
+    let html = "<p>";
+
+    let colourValues = getCurrentColourValues();
+    let colourCounts = getCurrentColourCounts();
+
+    for (i = 0; i < colourValues.length; i++)
+    {
+        if (i != 0)
+        {
+            html += " ";
+        }
+        html += "<span style=\"border: 10px solid " + colourValues[i] + ";\">" + colourCounts[i] + "</span>";
+    }
+
+    html += "</p>";
+
+    elem.innerHTML = html;
+
 }
 
 
@@ -135,6 +241,7 @@ function FlexibleColourRangeFromTemperatures(temperatures, sortedTemperatures, c
     // look nice.
 
     let goal = daysPerColourOnAverage;
+    console.log("Aiming for " + goal + " days per colour.");
     let current = 0;
     let maxTemp = sortedTemperatures[0] - 1;
     // Find next max temp
@@ -154,7 +261,12 @@ function FlexibleColourRangeFromTemperatures(temperatures, sortedTemperatures, c
                 // Only raise maxTemp if it's closer to the goal
                 if (Math.abs(goal - current) > Math.abs(goal - ctr))
                 {
+                    console.log("Aiming for " + goal + ". Choosing " + ctr + " over " + current + ".");
                     maxTemp = sortedTemperatures[ctr];
+                }
+                else
+                {
+                    console.log("Aiming for " + goal + ". Choosing " + current + " over " + ctr + ".");
                 }
                 // One could get the median of the current temperature and the next one, but we
                 // expect that the differences won't be too great so this is OK too (and simpler)

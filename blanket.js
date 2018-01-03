@@ -1,5 +1,6 @@
 function drawTemperatureBlanket(city, colourRange, style)
 {
+
     context.beginPath();
     context.rect(0, 0, 600, 730);
     context.fillStyle = "white";
